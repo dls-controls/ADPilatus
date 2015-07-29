@@ -2,7 +2,8 @@
 # Run "gnumake clean uninstall install" in the application
 # top directory each time this file is changed.
 
-ADPILATUS=$(AREA_DETECTOR)/ADPilatus
+LOCAL=/home/rjq35657/R3.14.12.3
+ADPILATUS=$(LOCAL)/support/ADPilatus
 
 -include $(TOP)/../../../configure/RELEASE_PATHS.local
 -include $(TOP)/../../../configure/RELEASE_PATHS.local.$(EPICS_HOST_ARCH)
