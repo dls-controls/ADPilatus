@@ -770,7 +770,7 @@ asynStatus pilatusDetector::setAcquireParams()
         dval = 1.;
         setDoubleParam(ADAcquireTime, dval);
     }
-    epicsSnprintf(this->toCamserver, sizeof(this->toCamserver), "exptime %f", dval);
+    epicsSnprintf(this->toCamserver, sizeof(this->toCamserver), "exptime %11.8f", dval);
     writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
 
     status = getDoubleParam(ADAcquirePeriod, &dval);
@@ -778,7 +778,7 @@ asynStatus pilatusDetector::setAcquireParams()
         dval = 2.;
         setDoubleParam(ADAcquirePeriod, dval);
     }
-    epicsSnprintf(this->toCamserver, sizeof(this->toCamserver), "expperiod %f", dval);
+    epicsSnprintf(this->toCamserver, sizeof(this->toCamserver), "expperiod %11.8f", dval);
     writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
 
     status = getDoubleParam(PilatusDelayTime, &dval);
@@ -1490,8 +1490,20 @@ asynStatus pilatusDetector::writeFloat64(asynUser *pasynUser, epicsFloat64 value
     } else if (function == PilatusPhi) {
         epicsSnprintf(this->toCamserver, sizeof(this->toCamserver), "mxsettings Phi %f", value);
         writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
+    } else if (function == PilatusPhiIncr) {
+        epicsSnprintf(this->toCamserver, sizeof(this->toCamserver), "mxsettings Phi_increment %f", value);
+        writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
     } else if (function == PilatusChi) {
         epicsSnprintf(this->toCamserver, sizeof(this->toCamserver), "mxsettings Chi %f", value);
+        writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
+    } else if (function == PilatusChiIncr) {
+        epicsSnprintf(this->toCamserver, sizeof(this->toCamserver), "mxsettings Chi_increment %f", value);
+        writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
+    } else if (function == PilatusOmega) {
+        epicsSnprintf(this->toCamserver, sizeof(this->toCamserver), "mxsettings Omega %f", value);
+        writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
+    } else if (function == PilatusOmegaIncr) {
+        epicsSnprintf(this->toCamserver, sizeof(this->toCamserver), "mxsettings Omega_increment %f", value);
         writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
     } else {
         /* If this parameter belongs to a base class call its method */
