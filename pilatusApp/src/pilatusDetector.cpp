@@ -1544,7 +1544,8 @@ pilatusDetector::destpath(const char *source)
     The file is copied to host $(camserverHost):$(cbfTemplateLocation)/$(basename)
     e.g. /tmp/cbf_templates/test.cbft
  * \param[in] source is a file available to the EPICS driver typically running on the PPU (Pilatus Processing Unit)
- * \param[out] camserverpath is the path as copied to camserverHost */
+ * \param[out] path_exists true if source exists
+ * \param[out] isregular  true if source is a regular file   */
 asynStatus pilatusDetector::transferCbfTemplate(const char *source, bool &path_exists, bool &isregular)
 {
     asynStatus result = asynSuccess;
