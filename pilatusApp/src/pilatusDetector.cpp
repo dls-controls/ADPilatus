@@ -101,7 +101,11 @@ static const char *driverName = "pilatusDetector";
 #define PilatusAlphaString          "ALPHA"
 #define PilatusKappaString          "KAPPA"
 #define PilatusPhiString            "PHI"
+#define PilatusPhiIncrString        "PHI_INCR"
 #define PilatusChiString            "CHI"
+#define PilatusChiIncrString        "CHI_INCR"
+#define PilatusOmegaString          "OMEGA"
+#define PilatusOmegaIncrString      "OMEGA_INCR"
 #define PilatusOscillAxisString     "OSCILL_AXIS"
 #define PilatusNumOscillString      "NUM_OSCILL"
 #define PilatusPixelCutOffString    "PIXEL_CUTOFF"
@@ -113,7 +117,7 @@ static const char *driverName = "pilatusDetector";
 #define PilatusThHumid2String       "TH_HUMID_2"
 #define PilatusTvxVersionString     "TVXVERSION"
 #define PilatusCbfTemplateFileString "CBFTEMPLATEFILE"
-#define PilatusHeaderStringString   "HEADERSTRING"
+#define PilatusHeaderStringString    "HEADERSTRING"
 
 
 /** Driver for Dectris Pilatus pixel array detectors using their camserver server over TCP/IP socket */
@@ -134,6 +138,7 @@ public:
     void report(FILE *fp, int details);
     /* These should be private but are called from C so must be public */
     void pilatusTask(); 
+    void pilatusStatus();
     
 protected:
     int PilatusDelayTime;
@@ -165,10 +170,14 @@ protected:
     int PilatusAlpha;
     int PilatusKappa;
     int PilatusPhi;
+    int PilatusPhiIncr;
     int PilatusChi;
+    int PilatusChiIncr;
+    int PilatusOmega;
+    int PilatusOmegaIncr;
     int PilatusOscillAxis;
     int PilatusNumOscill;
-    int PilatusPixelCutOff;  
+    int PilatusPixelCutOff;
     int PilatusThTemp0;
     int PilatusThTemp1;
     int PilatusThTemp2;
@@ -196,7 +205,6 @@ protected:
     asynStatus writeReadCamserver(double timeout);
     asynStatus setAcquireParams();
     asynStatus setThreshold();
-    asynStatus pilatusStatus();
     void readBadPixelFile(const char *badPixelFile);
     void readFlatFieldFile(const char *flatFieldFile);
     asynStatus transferCbfTemplate(const char *source, bool &path_exists, bool &isregular);
@@ -1802,7 +1810,11 @@ pilatusDetector::pilatusDetector(const char *portName, const char *camserverPort
     createParam(PilatusAlphaString,          asynParamFloat64, &PilatusAlpha);
     createParam(PilatusKappaString,          asynParamFloat64, &PilatusKappa);
     createParam(PilatusPhiString,            asynParamFloat64, &PilatusPhi);
+    createParam(PilatusPhiIncrString,        asynParamFloat64, &PilatusPhiIncr);
     createParam(PilatusChiString,            asynParamFloat64, &PilatusChi);
+    createParam(PilatusChiIncrString,        asynParamFloat64, &PilatusChiIncr);
+    createParam(PilatusOmegaString,          asynParamFloat64, &PilatusOmega);
+    createParam(PilatusOmegaIncrString,      asynParamFloat64, &PilatusOmegaIncr);
     createParam(PilatusOscillAxisString,     asynParamOctet,   &PilatusOscillAxis);
     createParam(PilatusNumOscillString,      asynParamInt32,   &PilatusNumOscill);
     createParam(PilatusPixelCutOffString,    asynParamInt32,   &PilatusPixelCutOff);

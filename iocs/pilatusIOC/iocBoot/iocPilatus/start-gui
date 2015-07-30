@@ -1,0 +1,9 @@
+source /home/rjq35657/local-pc74.sh
+cd /home/rjq35657/R3.14.12.3/support/ADPilatus/pilatusApp/op/adl
+P=/home/rjq35657/R3.14.12.3/support/devIocStats-3.1.13/op/adl
+P=${P}:/dls_sw/prod/R3.14.12.3/support/ADCore/2-2dls3/ADApp/op/adl
+EPICS_DISPLAY_PATH=${P}
+unset P
+export EPICS_DISPLAY_PATH
+medm -x -macro "P=13PIL1:, R=cam1:" ./pilatusDetector.adl
+
