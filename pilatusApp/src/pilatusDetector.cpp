@@ -19,9 +19,11 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <cbf_ad.h>
 #include <tiffio.h>
+#include <libgen.h>
 
 #include <epicsTime.h>
 #include <epicsThread.h>
@@ -120,7 +122,10 @@ public:
     pilatusDetector(const char *portName, const char *camserverPort,
                     int maxSizeX, int maxSizeY,
                     int maxBuffers, size_t maxMemory,
-                    int priority, int stackSize);
+                    int priority, int stackSize,
+                    int cbfTransfer,
+                    const char* camserverHost,
+                    const char* cbfTemplateLocation);
                  
     /* These are the methods that we override from ADDriver */
     virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
@@ -173,6 +178,7 @@ protected:
     int PilatusThHumid2;
     int PilatusTvxVersion;
     int PilatusCbfTemplateFile;
+    int PilatusCbfTemplateTransfer;
     int PilatusHeaderString;
     #define LAST_PILATUS_PARAM PilatusHeaderString
 
@@ -194,13 +200,18 @@ protected:
     asynStatus pilatusStatus();
     void readBadPixelFile(const char *badPixelFile);
     void readFlatFieldFile(const char *flatFieldFile);
-   
+    asynStatus transferCbfTemplate(const char *source);
+    char *destpath(const char *source);
+    
     /* Our data */
     int imagesRemaining;
     epicsEventId startEventId;
     epicsEventId stopEventId;
     char toCamserver[MAX_MESSAGE_SIZE];
     char fromCamserver[MAX_MESSAGE_SIZE];
+    int cbfTransfer;
+    char *camserverHost;
+    char *cbfTemplateLocation;
     NDArray *pFlatField;
     char multipleFileFormat[MAX_FILENAME_LEN];
     int multipleFileNumber;
@@ -1497,6 +1508,66 @@ asynStatus pilatusDetector::writeFloat64(asynUser *pasynUser, epicsFloat64 value
     return status;
 }
 
+char *
+pilatusDetector::destpath(const char *source)
+{
+    char destpath[MAX_FILENAME_LEN];
+    char *pathcopy = epicsStrDup(source);
+    char *bbasename = basename(pathcopy);
+    epicsSnprintf(destpath,sizeof(destpath), "%s/%s",
+                  this->cbfTemplateLocation, bbasename);
+    free(pathcopy);
+    return epicsStrDup(destpath);
+}
+
+/** Called to copy a file to the detector computer
+    using host OS "scp" command
+    The file is copied to host $(camserverHost):$(cbfTemplateLocation)/$(basename)
+    e.g. /tmp/cbf_templates/test.cbft
+ * \param[in] source is a file available to the EPICS driver typically running on the PPU (Pilatus Processing Unit)
+ * \param[out] camserverpath is the path as copied to camserverHost */
+asynStatus pilatusDetector::transferCbfTemplate(const char *source)
+{
+    asynStatus result = asynSuccess;
+    int status;
+    int scpstatus;
+    char cmd[MAX_MESSAGE_SIZE];
+    char msg[MAX_MESSAGE_SIZE];
+    char *destpath = this->destpath(source);
+
+    epicsSnprintf(cmd, sizeof(cmd), "scp %s det@%s:%s",
+                  source, camserverHost, destpath);
+    free(destpath);
+    epicsSnprintf(msg, sizeof(msg),"Transfer file cmd\n%s", cmd);
+    
+    setStringParam(ADStatusMessage, msg);
+    status = system(cmd);
+    if (status == -1)
+    {
+        epicsSnprintf(msg, sizeof(msg), "Error invoking scp. "
+                      "Command was \"%s\"", cmd);
+        setStringParam(ADStatusMessage, msg);
+        result = asynError;
+    }
+    else {
+        scpstatus = WEXITSTATUS(status);
+        if (scpstatus > 0)
+        {
+            epicsSnprintf(msg, sizeof(msg), "scp returned error code"
+                          " %d. Command was \"%s\"",
+                          scpstatus, cmd);
+            setStringParam(ADStatusMessage, msg);
+            result = asynError;
+        } else {
+            epicsSnprintf(msg, sizeof(msg), "scp copied okay:"
+                          "Command was \"%s\"",
+                          cmd);
+            setStringParam(ADStatusMessage, msg);
+        }
+    }
+    return result;
+}
+
 /** Called when asyn clients call pasynOctet->write().
   * This function performs actions for some parameters, including PilatusBadPixelFile, ADFilePath, etc.
   * For all parameters it sets the value in the parameter library and calls any registered callbacks..
@@ -1505,12 +1576,18 @@ asynStatus pilatusDetector::writeFloat64(asynUser *pasynUser, epicsFloat64 value
   * \param[in] nChars Number of characters to write.
   * \param[out] nActual Number of characters actually written. */
 asynStatus pilatusDetector::writeOctet(asynUser *pasynUser, const char *value, 
-                                    size_t nChars, size_t *nActual)
+                                       size_t nChars, size_t *nActual)
 {
     int function = pasynUser->reason;
     asynStatus status = asynSuccess;
+    asynStatus transferStatus = asynSuccess;
     const char *functionName = "writeOctet";
+    int adstatus;
 
+    /* Ensure that detector is not acquiring before 
+       we copy cbf_template */
+    getIntegerParam(ADStatus, &adstatus);
+    
     /* Set the parameter in the parameter library. */
     status = (asynStatus)setStringParam(function, (char *)value);
 
@@ -1527,8 +1604,27 @@ asynStatus pilatusDetector::writeOctet(asynUser *pasynUser, const char *value,
             strlen(value) == 0 ? "(nil)" : value);
         writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
     } else if (function == PilatusCbfTemplateFile) {
-        epicsSnprintf(this->toCamserver, sizeof(this->toCamserver), "mxsettings cbf_template_file %s",
-            strlen(value) == 0 ? "0" : value);
+        if (!this->cbfTransfer) {
+            epicsSnprintf(this->toCamserver, sizeof(this->toCamserver),
+                          "mxsettings cbf_template_file %s",
+                          strlen(value) == 0 ? "0" : value);
+            writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
+        } else {
+            /* only attempt cbf transfers when not acquiring */
+            if (adstatus != ADStatusAcquire) {
+                transferStatus = transferCbfTemplate(value);
+                char *destpath = this->destpath(value);
+                epicsSnprintf(this->toCamserver, sizeof(this->toCamserver),
+                              "mxsettings cbf_template_file %s",
+                              destpath);
+                free(destpath);
+                epicsSnprintf(pasynUser->errorMessage, pasynUser->errorMessageSize,
+                              "%s:%s: transferCbfTemplate returned %d value=%s",
+                              driverName, functionName, transferStatus, value);
+            } else {
+                setStringParam(ADStatusMessage, "Ignoring request to set cbf template while acquiring");
+            }
+        }
         writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
     } else {
         /* If this parameter belongs to a base class call its method */
@@ -1577,10 +1673,14 @@ void pilatusDetector::report(FILE *fp, int details)
 extern "C" int pilatusDetectorConfig(const char *portName, const char *camserverPort, 
                                     int maxSizeX, int maxSizeY,
                                     int maxBuffers, size_t maxMemory,
-                                    int priority, int stackSize)
+                                    int priority, int stackSize,
+                                    int cbfTransfer,
+                                    const char *camserverHost,
+                                    const char *cbfTemplateLocation)
 {
-    new pilatusDetector(portName, camserverPort, maxSizeX, maxSizeY, maxBuffers, maxMemory,
-                        priority, stackSize);
+    new pilatusDetector(portName, camserverPort, maxSizeX, maxSizeY,
+                        maxBuffers, maxMemory, priority, stackSize,
+                        cbfTransfer, camserverHost, cbfTemplateLocation);
     return(asynSuccess);
 }
 
@@ -1599,17 +1699,23 @@ extern "C" int pilatusDetectorConfig(const char *portName, const char *camserver
   *            allowed to allocate. Set this to -1 to allow an unlimited amount of memory.
   * \param[in] priority The thread priority for the asyn port driver thread if ASYN_CANBLOCK is set in asynFlags.
   * \param[in] stackSize The stack size for the asyn port driver thread if ASYN_CANBLOCK is set in asynFlags.
+  * \param[in] cbfTransfer Set this to 1 to copy the template as part of mxsettings cbf_template_file
+  * \param[in] camserverHost Host to copy cbf template to when using cbfTransfer method e.g. 10.10.10.100.
+  * \param[in] cbfTemplateLocation When using cbfTransfer, file system location on camserverHost where cbf templates are copied as part of mxsettings cbf_template_file.
   */
 pilatusDetector::pilatusDetector(const char *portName, const char *camserverPort,
                                 int maxSizeX, int maxSizeY,
                                 int maxBuffers, size_t maxMemory,
-                                int priority, int stackSize)
+                                int priority, int stackSize,
+                                int cbfTransfer,
+                                const char *camserverHost,
+                                const char *cbfTemplateLocation)
 
     : ADDriver(portName, 1, NUM_PILATUS_PARAMS, maxBuffers, maxMemory,
                0, 0,             /* No interfaces beyond those set in ADDriver.cpp */
                ASYN_CANBLOCK, 1, /* ASYN_CANBLOCK=1, ASYN_MULTIDEVICE=0, autoConnect=1 */
                priority, stackSize),
-      imagesRemaining(0), firstStatusCall(1)
+      imagesRemaining(0), cbfTransfer(cbfTransfer), firstStatusCall(1)
 
 {
     int status = asynSuccess;
@@ -1635,7 +1741,12 @@ pilatusDetector::pilatusDetector(const char *portName, const char *camserverPort
     dims[1] = maxSizeY;
     /* Allocate the raw buffer we use for flat fields. */
     this->pFlatField = this->pNDArrayPool->alloc(2, dims, NDUInt32, 0, NULL);
-    
+
+    /* store the settings for cbf template transfer */
+    if (cbfTransfer) {
+        this->camserverHost = epicsStrDup(camserverHost);
+        this->cbfTemplateLocation = epicsStrDup(cbfTemplateLocation);
+    }
     /* Connect to camserver */
     status = pasynOctetSyncIO->connect(camserverPort, 0, &this->pasynUserCamserver, NULL);
 
@@ -1739,6 +1850,9 @@ static const iocshArg pilatusDetectorConfigArg4 = {"maxBuffers", iocshArgInt};
 static const iocshArg pilatusDetectorConfigArg5 = {"maxMemory", iocshArgInt};
 static const iocshArg pilatusDetectorConfigArg6 = {"priority", iocshArgInt};
 static const iocshArg pilatusDetectorConfigArg7 = {"stackSize", iocshArgInt};
+static const iocshArg pilatusDetectorConfigArg8 = {"cbfTransfer", iocshArgInt};
+static const iocshArg pilatusDetectorConfigArg9 = {"camserverHost", iocshArgString};
+static const iocshArg pilatusDetectorConfigArg10 = {"cbfTemplateLocation", iocshArgString};
 static const iocshArg * const pilatusDetectorConfigArgs[] =  {&pilatusDetectorConfigArg0,
                                                               &pilatusDetectorConfigArg1,
                                                               &pilatusDetectorConfigArg2,
@@ -1746,12 +1860,16 @@ static const iocshArg * const pilatusDetectorConfigArgs[] =  {&pilatusDetectorCo
                                                               &pilatusDetectorConfigArg4,
                                                               &pilatusDetectorConfigArg5,
                                                               &pilatusDetectorConfigArg6,
-                                                              &pilatusDetectorConfigArg7};
+                                                              &pilatusDetectorConfigArg7,
+                                                              &pilatusDetectorConfigArg8,
+                                                              &pilatusDetectorConfigArg9,
+                                                              &pilatusDetectorConfigArg10};
 static const iocshFuncDef configPilatusDetector = {"pilatusDetectorConfig", 8, pilatusDetectorConfigArgs};
 static void configPilatusDetectorCallFunc(const iocshArgBuf *args)
 {
     pilatusDetectorConfig(args[0].sval, args[1].sval, args[2].ival,  args[3].ival,  
-                          args[4].ival, args[5].ival, args[6].ival,  args[7].ival);
+                          args[4].ival, args[5].ival, args[6].ival,  args[7].ival,
+                          args[8].ival, args[9].sval, args[10].sval);
 }
 
 
