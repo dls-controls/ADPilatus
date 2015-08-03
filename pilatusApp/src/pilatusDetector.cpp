@@ -18,6 +18,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <fcntl.h>
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -1527,8 +1528,16 @@ asynStatus pilatusDetector::writeFloat64(asynUser *pasynUser, epicsFloat64 value
     return status;
 }
 
-char *
-pilatusDetector::destpath(const char *source)
+/** Returns the file path of a CBF_template_file for camserver 
+ *  The file system location is translated by using the basename
+ *  and the cbfTemplateLocation configured in the class constructor.
+ *  The result is assigned using epicsStrDup and it should be free'd
+ *  by the caller.
+ * \param[in] source is the path of the cbf_template_file as 
+ *            available to the system where the EPICS driver runs, 
+ *            this is typically the Pilatus Processing Unit (PPU).
+ */
+char *pilatusDetector::destpath(const char *source)
 {
     char destpath[MAX_FILENAME_LEN];
     char *pathcopy = epicsStrDup(source);
@@ -1539,52 +1548,72 @@ pilatusDetector::destpath(const char *source)
     return epicsStrDup(destpath);
 }
 
-/** Called to copy a file to the detector computer
-    using host OS "scp" command
+/** Copy a file to the detector computer
+    using host OS's "scp" command
+    This is invoked as part of the "mxsettings cbf_template_file "
+    invocation.
     The file is copied to host $(camserverHost):$(cbfTemplateLocation)/$(basename)
     e.g. /tmp/cbf_templates/test.cbft
+    Returns asynSuccess when a file is copied.
+    Returns asynError if no file is copied 
  * \param[in] source is a file available to the EPICS driver typically running on the PPU (Pilatus Processing Unit)
- * \param[out] path_exists true if source exists
- * \param[out] isregular  true if source is a regular file   */
-asynStatus pilatusDetector::transferCbfTemplate(const char *source, bool &path_exists, bool &isregular)
+ * \param[out] path_exists returns true if the file is available
+ * \param[out] isregular returns true if the file is a regular file
+ */
+asynStatus pilatusDetector::transferCbfTemplate(
+    const char *source, bool &path_exists, bool &isregular)
 {
     asynStatus result = asynSuccess;
-    int status;
     int scpstatus;
     char cmd[MAX_MESSAGE_SIZE];
     char msg[MAX_MESSAGE_SIZE];
     char *destpath = this->destpath(source);
 
-    epicsSnprintf(cmd, sizeof(cmd), "scp %s det@%s:%s",
-                  source, camserverHost, destpath);
-    free(destpath);
-    epicsSnprintf(msg, sizeof(msg),"Transfer file cmd\n%s", cmd);
-    
-    setStringParam(ADStatusMessage, msg);
-    status = system(cmd);
-    if (status == -1)
-    {
-        epicsSnprintf(msg, sizeof(msg), "Error invoking scp. "
-                      "Command was \"%s\"", cmd);
-        setStringParam(ADStatusMessage, msg);
-        result = asynError;
+    int fd=-1;
+    int status=-1;
+    struct stat statBuff;
+    path_exists = false;
+    isregular = false;
+    fd = open(source, O_RDONLY,0);
+    if (fd>=0) {
+        path_exists = true;
+        status = fstat(fd, &statBuff);
     }
-    else {
-        scpstatus = WEXITSTATUS(status);
-        if (scpstatus > 0)
+    close(fd);
+    if (path_exists && (status == 0)) {
+        isregular=S_ISREG(statBuff.st_mode);
+    }
+    if (path_exists && isregular) {
+        epicsSnprintf(cmd, sizeof(cmd), "scp %s det@%s:%s",
+                      source, camserverHost, destpath);
+        epicsSnprintf(msg, sizeof(msg),"Transfer file cmd\n%s", cmd);
+    
+        setStringParam(ADStatusMessage, msg);
+        status = system(cmd);
+        if (status == -1)
         {
-            epicsSnprintf(msg, sizeof(msg), "scp returned error code"
-                          " %d. Command was \"%s\"",
-                          scpstatus, cmd);
+            epicsSnprintf(msg, sizeof(msg), "Error invoking scp. "
+                          "Command was \"%s\"", cmd);
             setStringParam(ADStatusMessage, msg);
             result = asynError;
         } else {
-            epicsSnprintf(msg, sizeof(msg), "scp copied okay:"
-                          "Command was \"%s\"",
-                          cmd);
-            setStringParam(ADStatusMessage, msg);
+            scpstatus = WEXITSTATUS(status);
+            if (scpstatus > 0)
+            {
+                epicsSnprintf(msg, sizeof(msg), "scp returned error code"
+                              " %d. Command was \"%s\"",
+                              scpstatus, cmd);
+                setStringParam(ADStatusMessage, msg);
+                result = asynError;
+            } else {
+                epicsSnprintf(msg, sizeof(msg), "scp copied okay:"
+                              "Command was \"%s\"",
+                              cmd);
+                setStringParam(ADStatusMessage, msg);
+            }
         }
     }
+    free(destpath);
     return result;
 }
 
@@ -1670,7 +1699,6 @@ asynStatus pilatusDetector::writeOctet(asynUser *pasynUser, const char *value,
         } else {
             transferStatus = this->doTransfer(pasynUser, value, nChars);
         }
-        writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
     } else {
         /* If this parameter belongs to a base class call its method */
         if (function < FIRST_PILATUS_PARAM) status = ADDriver::writeOctet(pasynUser, value, nChars, nActual);
@@ -1913,14 +1941,16 @@ static const iocshArg * const pilatusDetectorConfigArgs[] =  {&pilatusDetectorCo
                                                               &pilatusDetectorConfigArg8,
                                                               &pilatusDetectorConfigArg9,
                                                               &pilatusDetectorConfigArg10};
-static const iocshFuncDef configPilatusDetector = {"pilatusDetectorConfig", 8, pilatusDetectorConfigArgs};
+static const iocshFuncDef configPilatusDetector = {
+    "pilatusDetectorConfig",
+    sizeof(pilatusDetectorConfigArgs)/sizeof(pilatusDetectorConfigArgs[0]),
+    pilatusDetectorConfigArgs};
 static void configPilatusDetectorCallFunc(const iocshArgBuf *args)
 {
-    pilatusDetectorConfig(args[0].sval, args[1].sval, args[2].ival,  args[3].ival,  
+    pilatusDetectorConfig(args[0].sval, args[1].sval, args[2].ival,  args[3].ival,
                           args[4].ival, args[5].ival, args[6].ival,  args[7].ival,
                           args[8].ival, args[9].sval, args[10].sval);
 }
-
 
 static void pilatusDetectorRegister(void)
 {

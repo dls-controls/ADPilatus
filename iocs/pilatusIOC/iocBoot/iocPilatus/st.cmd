@@ -27,8 +27,15 @@ drvAsynIPPortConfigure("camserver","pilatus-100k:41234")
 # Set the input and output terminators.
 asynOctetSetInputEos("camserver", 0, "\030")
 asynOctetSetOutputEos("camserver", 0, "\n")
+epicsEnvSet("maxbuffers",0)
+epicsEnvSet("maxmemory",0)
+epicsEnvSet("priority",0)
+epicsEnvSet("stackSize",0)
+epicsEnvSet("cbftransfer",1)
+epicsEnvSet("camserverHost","pilatus-100k")
+epicsEnvSet("cbfTemplateLocation","/tmp/cbf_templates")
 
-pilatusDetectorConfig("$(PORT)", "camserver", $(XSIZE), $(YSIZE), 0, 0)
+pilatusDetectorConfig("$(PORT)", "camserver", $(XSIZE), $(YSIZE), $(maxbuffers), $(maxmemory), $(priority),$(stackSize), $(cbftransfer),$(camserverHost),$(cbfTemplateLocation))
 dbLoadRecords("$(ADPILATUS)/db/pilatus.template","P=$(PREFIX),R=cam1:,PORT=$(PORT),ADDR=0,TIMEOUT=1,CAMSERVER_PORT=camserver")
 
 # Create a standard arrays plugin
