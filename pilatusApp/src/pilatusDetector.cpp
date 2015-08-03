@@ -126,7 +126,6 @@ public:
                     int cbfTransfer,
                     const char* camserverHost,
                     const char* cbfTemplateLocation);
-                 
     /* These are the methods that we override from ADDriver */
     virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
     virtual asynStatus writeFloat64(asynUser *pasynUser, epicsFloat64 value);
@@ -202,7 +201,6 @@ protected:
     void readFlatFieldFile(const char *flatFieldFile);
     asynStatus transferCbfTemplate(const char *source);
     char *destpath(const char *source);
-    
     /* Our data */
     int imagesRemaining;
     epicsEventId startEventId;
