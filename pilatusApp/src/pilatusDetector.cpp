@@ -1694,7 +1694,7 @@ asynStatus pilatusDetector::writeOctet(asynUser *pasynUser, const char *value,
         if (!this->cbfTransfer) {
             epicsSnprintf(this->toCamserver, sizeof(this->toCamserver),
                           "mxsettings cbf_template_file %s",
-                          strlen(value) == 0 ? "0" : value);
+                          (nChars == 0) ? "0" : value);
             writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
         } else {
             transferStatus = this->doTransfer(pasynUser, value, nChars);
