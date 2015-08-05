@@ -199,7 +199,8 @@ protected:
     asynStatus pilatusStatus();
     void readBadPixelFile(const char *badPixelFile);
     void readFlatFieldFile(const char *flatFieldFile);
-    asynStatus transferCbfTemplate(const char *source);
+    asynStatus transferCbfTemplate(const char *source, bool &path_exists, bool &isregular);
+    asynStatus doTransfer(asynUser *pasynUser, const char *value, size_t nChars);
     char *destpath(const char *source);
     /* Our data */
     int imagesRemaining;
@@ -1566,6 +1567,49 @@ asynStatus pilatusDetector::transferCbfTemplate(const char *source)
     return result;
 }
 
+
+asynStatus pilatusDetector::doTransfer(asynUser *pasynUser, const char *value, size_t nChars)
+{
+    asynStatus transferStatus = asynSuccess;
+    int adstatus;
+    bool path_exists;
+    bool isregular;
+    const char *functionName = "doTransfer";
+
+    /* Ensure that detector is not acquiring before
+       we copy cbf_template */
+    getIntegerParam(ADStatus, &adstatus);
+
+    /* only attempt cbf transfers when not acquiring */
+    if (adstatus != ADStatusAcquire) {
+        if (( nChars == 0 ) || (strcmp(value, "0")==0)){
+            /* clear template definition */
+            epicsSnprintf(this->toCamserver, sizeof(this->toCamserver),
+                          "mxsettings cbf_template_file 0");
+        } else {
+            /* transfer template before setting definition */
+            transferStatus = this->transferCbfTemplate(value, path_exists, isregular);
+            if (transferStatus == asynSuccess) {
+                /* transfer done okay, set transfer */
+                char *destpath = this->destpath(value);
+                epicsSnprintf(this->toCamserver, sizeof(this->toCamserver),
+                              "mxsettings cbf_template_file %s",
+                              destpath);
+                epicsSnprintf(pasynUser->errorMessage, pasynUser->errorMessageSize,
+                              "%s:%s: transferCbfTemplate returned %d value=%s",
+                              driverName, functionName, transferStatus, value);
+                writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
+                free(destpath);
+            } else {
+                setStringParam(ADStatusMessage, "CBF transfer failed. Wrong path?");
+            }
+        }
+    } else {
+        setStringParam(ADStatusMessage, "Ignoring request to set cbf template while acquiring");
+    }
+    return transferStatus;
+}
+
 /** Called when asyn clients call pasynOctet->write().
   * This function performs actions for some parameters, including PilatusBadPixelFile, ADFilePath, etc.
   * For all parameters it sets the value in the parameter library and calls any registered callbacks..
@@ -1580,11 +1624,6 @@ asynStatus pilatusDetector::writeOctet(asynUser *pasynUser, const char *value,
     asynStatus status = asynSuccess;
     asynStatus transferStatus = asynSuccess;
     const char *functionName = "writeOctet";
-    int adstatus;
-
-    /* Ensure that detector is not acquiring before 
-       we copy cbf_template */
-    getIntegerParam(ADStatus, &adstatus);
     
     /* Set the parameter in the parameter library. */
     status = (asynStatus)setStringParam(function, (char *)value);
@@ -1608,20 +1647,7 @@ asynStatus pilatusDetector::writeOctet(asynUser *pasynUser, const char *value,
                           strlen(value) == 0 ? "0" : value);
             writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
         } else {
-            /* only attempt cbf transfers when not acquiring */
-            if (adstatus != ADStatusAcquire) {
-                transferStatus = transferCbfTemplate(value);
-                char *destpath = this->destpath(value);
-                epicsSnprintf(this->toCamserver, sizeof(this->toCamserver),
-                              "mxsettings cbf_template_file %s",
-                              destpath);
-                free(destpath);
-                epicsSnprintf(pasynUser->errorMessage, pasynUser->errorMessageSize,
-                              "%s:%s: transferCbfTemplate returned %d value=%s",
-                              driverName, functionName, transferStatus, value);
-            } else {
-                setStringParam(ADStatusMessage, "Ignoring request to set cbf template while acquiring");
-            }
+            transferStatus = this->doTransfer(pasynUser, value, nChars);
         }
         writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
     } else {
