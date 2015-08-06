@@ -1,2 +1,4 @@
+cd $(dirname $0)
+source /tmp/ssh-agent-info.sh
 ../../bin/linux-x86_64/pilatusDetectorApp st.cmd
 
