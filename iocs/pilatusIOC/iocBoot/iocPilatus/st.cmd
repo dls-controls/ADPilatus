@@ -40,11 +40,11 @@ dbLoadRecords("$(ADPILATUS)/db/pilatus.template","P=$(PREFIX),R=cam1:,PORT=$(POR
 
 # Create a standard arrays plugin
 NDStdArraysConfigure("Image1", 5, 0, "$(PORT)", 0, 0)
-dbLoadRecords("$(ADCORE)/db/NDStdArrays.template", "P=$(PREFIX),R=image1:,PORT=Image1,ADDR=0,TIMEOUT=1,NDARRAY_PORT=$(PORT),TYPE=Int32,FTVL=LONG,NELEMENTS=94965")
+dbLoadRecords("$(ADCORE)/db/NDStdArrays.template", "P=$(PREFIX),R=image1:,PORT=Image1,ADDR=0,TIMEOUT=1,NDARRAY_ADDR=0,NDARRAY_PORT=$(PORT),TYPE=Int32,FTVL=LONG,NELEMENTS=94965")
 
 # Load all other plugins using commonPlugins.cmd
-< $(ADCORE)/iocBoot/commonPlugins.cmd
-set_requestfile_path("$(ADPILATUS)/pilatusApp/Db")
+#< $(ADCORE)/iocBoot/commonPlugins.cmd
+#set_requestfile_path("$(ADPILATUS)/pilatusApp/Db")
 
 #asynSetTraceMask("$(PORT)",0,255)
 #asynSetTraceMask("$(PORT)",0,3)
@@ -53,4 +53,4 @@ set_requestfile_path("$(ADPILATUS)/pilatusApp/Db")
 iocInit()
 
 # save things every thirty seconds
-create_monitor_set("auto_settings.req", 30,"P=$(PREFIX)")
+#create_monitor_set("auto_settings.req", 30,"P=$(PREFIX)")
