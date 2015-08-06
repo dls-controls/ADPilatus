@@ -1,6 +1,6 @@
 CBF Template Transfer method
 ============================
-Camserver support the command
+Camserver supports the command
 mxsettings cbf_template_file <path>
 where path can be 0 or a file system location.
 
