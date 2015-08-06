@@ -1584,7 +1584,7 @@ asynStatus pilatusDetector::transferCbfTemplate(
         isregular=S_ISREG(statBuff.st_mode);
     }
     if (path_exists && isregular) {
-        epicsSnprintf(cmd, sizeof(cmd), "scp %s det@%s:%s",
+        epicsSnprintf(cmd, sizeof(cmd), "scp -o StrictHostKeyChecking=no %s det@%s:%s",
                       source, camserverHost, destpath);
         epicsSnprintf(msg, sizeof(msg),"Transfer file cmd\n%s", cmd);
     
