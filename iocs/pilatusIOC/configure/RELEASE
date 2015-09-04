@@ -3,7 +3,8 @@
 # top directory each time this file is changed.
 
 LOCAL=/home/rjq35657/R3.14.12.3
-ADPILATUS=$(LOCAL)/support/ADPilatus
+#ADPILATUS=$(LOCAL)/startover/ADPilatus
+ADPILATUS=/home/rjq35657/R3.14.12.3/support/ADPilatus
 
 -include $(TOP)/../../../configure/RELEASE_PATHS.local
 -include $(TOP)/../../../configure/RELEASE_PATHS.local.$(EPICS_HOST_ARCH)
