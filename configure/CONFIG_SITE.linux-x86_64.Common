@@ -1,4 +1,6 @@
-# libxml2 installs headers in a non-standard system location. 
+# for dls-master branch only, don't merge upstream
+# libxml2 installs headers in a non-standard system location.
+
 XML2_INCLUDE=-I/usr/include/libxml2
 
 # Define the location of the hdf5, sz, and GraphicsMagick libraries
