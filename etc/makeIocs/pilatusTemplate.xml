@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 <components arch="linux-x86_64">
 	<EPICS_BASE.EpicsEnvSet key="EPICS_CA_MAX_ARRAY_BYTES" name="EPICS_CA_MAX_ARRAY_BYTES" value="10000000"/>
-	<ADPilatus.pilatusDetector ADDR="0" P="$(PREFIX)" R=":cam1:" TIMEOUT="1"  XSIZE="$(XSIZE)" YSIZE="$(YSIZE)" name="$(DETNAME)" BUFFERS="$(BUFFERS=100)" CAMSERVER="$(HOST):41234"/>
+	<ADPilatus.pilatusDetector PORT="$(PORTNAME)" CAMSERVER="$(HOST):41234" XSIZE="$(XSIZE)" YSIZE="$(YSIZE)" BUFFERS="$(BUFFERS=100)" CBF_TRANSFER="$(CBF_TRANSFER=0)" CAMSERVER_HOST="$(CAMSERVER_HOST=)" ADDR="0" P="$(PREFIX)" R=":cam1:" TIMEOUT="1" name="$(DETNAME)" />
 	<ADCore.NDAttributes attrname="NumExposures" description="Number of exposures per image" port="$(DETNAME)" source="NEXPOSURES" type="PARAM"/>
 	<ADCore.NDAttributes attrname="NumImages" description="Number of images" port="$(DETNAME)" source="NIMAGES" type="PARAM"/>
 	<ADCore.NDAttributes attrname="ImageMode" description="Image mode" port="$(DETNAME)" source="IMAGE_MODE" type="PARAM"/>

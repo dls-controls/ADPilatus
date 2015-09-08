@@ -19,7 +19,8 @@ class pilatusDetector(AsynPort):
     Dependencies = (ADCore,)
     _SpecificTemplate = pilatusTemplate
     def __init__(self, PORT = "pilatus1.CAM", CAMSERVER = "localhost:41234", XSIZE = 1024, YSIZE = 768,
-            BUFFERS = 50, MEMORY = 0, **args):
+                 BUFFERS = 50, MEMORY = 0, PRIORITY = 0, STACK_SIZE = 0, CBF_TRANSFER = 0,
+                 CAMSERVER_HOST = "10.10.10.100", CBF_TEMPLATE_LOCATION = "/tmp/cbf_templates", **args):
         # # Make an asyn IP port to talk to pilatus on
         CAMSERVER_PORT = PORT + "ip"
         self.ip = AsynIP(CAMSERVER, name = PORT + "ip",
@@ -44,7 +45,12 @@ class pilatusDetector(AsynPort):
         BUFFERS = Simple('Maximum number of NDArray buffers to be created for '
             'plugin callbacks', int),
         MEMORY = Simple('Max memory to allocate, should be maxw*maxh*nbuffer '
-            'for driver and all attached plugins', int))
+                        'for driver and all attached plugins', int),
+        PRIORITY = Simple("Thread priority for the asyn port driver used for epicsThreadCreate call, 0 for epicsThreadPriorityMedium",int),
+        STACK_SIZE = Simple("The stack size for the asyn port driver thread, 0 for epicsThreadGetStackSize(epicsThreadStackMedium)", int),
+        CBF_TRANSFER = Simple("Disable/Enable cbf transfer to camserver host [0 to disable, otherwise enabled ]", int),
+        CAMSERVER_HOST = Simple("Machine where camserver is running on, for cbf transfer"),
+        CBF_TEMPLATE_LOCATION = Simple("Directory path in CAMSERVER_HOST where cbf templates are copied to"))
 
     # Device attributes
     LibFileList = ['pilatusDetector', 'cbfad']
@@ -52,9 +58,10 @@ class pilatusDetector(AsynPort):
 
     def Initialise(self):
         print '# pilatusDetectorConfig(portName, serverPort, maxSizeX, ' \
-            'maxSizeY, maxBuffers, maxMemory)'
+            'maxSizeY, maxBuffers, maxMemory, priority, stack_size, cbf_transfer [0,1], camserver_host, cbfTemplateLocation)'
         print 'pilatusDetectorConfig("%(PORT)s", "%(CAMSERVER_PORT)s", ' \
-            '%(XSIZE)d, %(YSIZE)d, %(BUFFERS)d, %(MEMORY)d)' % self.__dict__
+            '%(XSIZE)d, %(YSIZE)d, %(BUFFERS)d, %(MEMORY)d, %(PRIORITY)d, %(STACK_SIZE)d, ' \
+            '%(CBF_TRANSFER)d, %(CAMSERVER_HOST)s, %(CBF_TEMPLATE_LOCATION)s  )' % self.__dict__
 
 def pilatus_sim(**kwargs):
     return simDetector(2500, 2000, **kwargs)
