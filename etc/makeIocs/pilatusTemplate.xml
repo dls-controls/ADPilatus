@@ -1,0 +1,26 @@
+<?xml version="1.0" ?>
+<components arch="linux-x86_64">
+	<EPICS_BASE.EpicsEnvSet key="EPICS_CA_MAX_ARRAY_BYTES" name="EPICS_CA_MAX_ARRAY_BYTES" value="10000000"/>
+	<ADPilatus.pilatusDetector ADDR="0" P="$(PREFIX)" R=":cam1:" TIMEOUT="1"  XSIZE="$(XSIZE)" YSIZE="$(YSIZE)" name="$(DETNAME)" BUFFERS="$(BUFFERS=100)" CAMSERVER="$(HOST):41234"/>
+	<ADCore.NDAttributes attrname="NumExposures" description="Number of exposures per image" port="$(DETNAME)" source="NEXPOSURES" type="PARAM"/>
+	<ADCore.NDAttributes attrname="NumImages" description="Number of images" port="$(DETNAME)" source="NIMAGES" type="PARAM"/>
+	<ADCore.NDAttributes attrname="ImageMode" description="Image mode" port="$(DETNAME)" source="IMAGE_MODE" type="PARAM"/>
+	<ADCore.NDAttributes attrname="TriggerMode" description="Trigger mode" port="$(DETNAME)" source="TRIGGER_MODE" type="PARAM"/>
+	<ADCore.NDAttributes attrname="ImageCounter" description="Image counter" port="$(DETNAME)" source="ARRAY_COUNTER" type="PARAM"/>
+	<ADCore.NDAttributes attrname="MaxSizeX" description="Detector X size" port="$(DETNAME)" source="MAX_SIZE_X" type="PARAM"/>
+	<ADCore.NDAttributes attrname="MaxSizeY" description="Detector Y size" port="$(DETNAME)" source="MAX_SIZE_Y" type="PARAM"/>
+	<ADCore.NDAttributes attrname="CameraModel" datatype="STRING" description="Camera model" port="$(DETNAME)" source="MODEL" type="PARAM"/>
+	<ADCore.NDAttributes attrname="CameraManufacturer" datatype="STRING" description="Camera manufacturer" port="$(DETNAME)" source="MANUFACTURER" type="PARAM"/>
+	<ADCore.NDAttributes attrname="AcqPeriod" datatype="DOUBLE" description="Acquisition period between images" port="$(DETNAME)" source="ACQ_PERIOD" type="PARAM"/>
+	<devIocStats.ioc IOCNAME="$(IOCNAME)" name="$(name=)"/>
+	<autosave.Autosave iocName="$(IOCNAME)" name="$(name=)AS" path="$(AUTOSAVEPATH)"/>
+	<autosave.auto_save_restoreStatus P="$(IOCNAME)"/>
+	<ADCore.NDStdArrays ADDR="0" FTVL="LONG" NDARRAY_ADDR="0" NDARRAY_PORT="$(DETNAME)" NELEMENTS="$(NELEMENTS)" P="$(PREFIX)" PORT="$(PORTNAME).ARR1" R=":image1:" TIMEOUT="1" TYPE="Int32"/>
+	<ADCore.NDROI ADDR="0" NDARRAY_ADDR="0" NDARRAY_PORT="$(DETNAME)" P="$(PREFIX)" PORT="$(PORTNAME).ROI1" R=":ROI1:" TIMEOUT="1" QUEUE="16"/>
+	<ADCore.NDProcess ADDR="0" NDARRAY_ADDR="0" NDARRAY_PORT="$(DETNAME)" P="$(PREFIX)" PORT="$(PORTNAME).PROC1" R=":Proc1:" TIMEOUT="1" QUEUE="16"/>
+	<ADCore.NDStats ADDR="0" HIST_SIZE="256" NCHANS="10000" NDARRAY_ADDR="0" NDARRAY_PORT="$(DETNAME)" P="$(PREFIX)" PORT="$(PORTNAME).STATS1" R=":Stats1:" TIMEOUT="1" XSIZE="$(XSIZE)" YSIZE="$(YSIZE)" QUEUE="16"/>
+	<ADCore.NDStats ADDR="0" BLOCK="0" Enabled="0" HIST_SIZE="256" NCHANS="10000" NDARRAY_ADDR="0" NDARRAY_PORT="$(DETNAME)" P="$(PREFIX)" PORT="$(PORTNAME).STATS2" QUEUE="16" R=":Stats2:" TIMEOUT="1" XSIZE="$(XSIZE)" YSIZE="$(YSIZE)"/>
+	<ADCore.NDFileHDF5 ADDR="0" NDARRAY_ADDR="0" NDARRAY_PORT="$(DETNAME)" P="$(PREFIX)" PORT="$(PORTNAME).HDF5" QUEUE="$(HDFBUFFERS=100)" R=":HDF5:" TIMEOUT="1"/>
+	<ffmpegServer.ffmpegStream ADDR="0" HTTP_PORT="$(HTTP_PORT=8080)" NDARRAY_ADDR="0" NDARRAY_PORT="$(DETNAME)" P="$(PREFIX)" PORT="$(PORTNAME).MJPG1" QUALITY="100" R=":MJPG1:" TIMEOUT="1"/>
+	<EPICS_BASE.StartupCommand command="dbpf &quot;$(PREFIX):cam1:CamserverAsyn.AUCT&quot;, 0" post_init="True"/>
+</components>

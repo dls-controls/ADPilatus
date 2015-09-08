@@ -1,0 +1,4 @@
+<?xml version="1.0" ?>
+<components arch="linux-x86_64">
+    <ADPilatus.pilatusXmlTemplate AUTOSAVEPATH="/dls/cs-iocs/autosave" HOST="172.23.243.160" IOCNAME="TestPilatus100K" NELEMENTS="94965" PORTNAME="pilatus1" PREFIX="TESTP100K" XSIZE="487" YSIZE="195"/>
+</components>
