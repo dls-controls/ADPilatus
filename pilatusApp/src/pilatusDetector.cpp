@@ -1568,7 +1568,8 @@ asynStatus pilatusDetector::transferCbfTemplate(
     char cmd[MAX_MESSAGE_SIZE];
     char msg[MAX_MESSAGE_SIZE];
     char *destpath = this->destpath(source);
-
+    const char *functionName = "transferCbfTemplate";
+    
     int fd=-1;
     int status=-1;
     struct stat statBuff;
@@ -1592,17 +1593,26 @@ asynStatus pilatusDetector::transferCbfTemplate(
         status = system(cmd);
         if (status == -1)
         {
-            epicsSnprintf(msg, sizeof(msg), "Error invoking scp. "
+            epicsSnprintf(msg, sizeof(msg), "status == -1 Error invoking scp. "
                           "Command was \"%s\"", cmd);
             setStringParam(ADStatusMessage, msg);
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                      "%s::%s error invoking scp, command was %s",
+                      driverName, functionName, cmd);
             result = asynError;
         } else {
             scpstatus = WEXITSTATUS(status);
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                      "%s::%s system call for scp command was %s, result is %d, scpstatus is %d",
+                      driverName, functionName, cmd, status, scpstatus);
             if (scpstatus > 0)
             {
                 epicsSnprintf(msg, sizeof(msg), "scp returned error code"
                               " %d. Command was \"%s\"",
                               scpstatus, cmd);
+                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                          "%s::%s error invoking scp, scp returned code %d, command was %s",
+                          driverName, functionName, scpstatus, cmd);
                 setStringParam(ADStatusMessage, msg);
                 result = asynError;
             } else {
@@ -1610,6 +1620,9 @@ asynStatus pilatusDetector::transferCbfTemplate(
                               "Command was \"%s\"",
                               cmd);
                 setStringParam(ADStatusMessage, msg);
+                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                          "%s::%s scp okay, return code is %d command was %s",
+                          driverName, functionName, scpstatus, cmd);
             }
         }
     }
@@ -1636,23 +1649,28 @@ asynStatus pilatusDetector::doTransfer(asynUser *pasynUser, const char *value, s
             /* clear template definition */
             epicsSnprintf(this->toCamserver, sizeof(this->toCamserver),
                           "mxsettings cbf_template_file 0");
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                      "%s::%s, mxsettings cbf_template_file 0\n",
+                      driverName, functionName);
+            writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);            
         } else {
             /* transfer template before setting definition */
             transferStatus = this->transferCbfTemplate(value, path_exists, isregular);
-            if (transferStatus == asynSuccess) {
-                /* transfer done okay, set transfer */
-                char *destpath = this->destpath(value);
-                epicsSnprintf(this->toCamserver, sizeof(this->toCamserver),
-                              "mxsettings cbf_template_file %s",
-                              destpath);
-                epicsSnprintf(pasynUser->errorMessage, pasynUser->errorMessageSize,
-                              "%s:%s: transferCbfTemplate returned %d value=%s",
-                              driverName, functionName, transferStatus, value);
-                writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
-                free(destpath);
-            } else {
-                setStringParam(ADStatusMessage, "CBF transfer failed. Wrong path?");
-            }
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                      "%s::%s  transferStatus == asynSuccess", driverName, functionName);
+            /* transfer done okay, set transfer */
+            char *destpath = this->destpath(value);
+            epicsSnprintf(this->toCamserver, sizeof(this->toCamserver),
+                          "mxsettings cbf_template_file %s",
+                          destpath);
+            epicsSnprintf(pasynUser->errorMessage, pasynUser->errorMessageSize,
+                          "%s:%s: transferCbfTemplate returned %d value=%s",
+                          driverName, functionName, transferStatus, value);
+            writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
+            free(destpath);
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                      "%s::%s, mxsettings cbf_template_file 0\n",
+                      driverName, functionName);
         }
     } else {
         setStringParam(ADStatusMessage, "Ignoring request to set cbf template while acquiring");
@@ -1698,6 +1716,9 @@ asynStatus pilatusDetector::writeOctet(asynUser *pasynUser, const char *value,
             writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
         } else {
             transferStatus = this->doTransfer(pasynUser, value, nChars);
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                      "%s::%s, doTransfer called_result is %d\n",
+                      driverName, functionName, transferStatus);
         }
     } else {
         /* If this parameter belongs to a base class call its method */
