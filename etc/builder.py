@@ -61,7 +61,7 @@ class pilatusDetector(AsynPort):
             'maxSizeY, maxBuffers, maxMemory, priority, stack_size, cbf_transfer [0,1], camserver_host, cbfTemplateLocation)'
         print 'pilatusDetectorConfig("%(PORT)s", "%(CAMSERVER_PORT)s", ' \
             '%(XSIZE)d, %(YSIZE)d, %(BUFFERS)d, %(MEMORY)d, %(PRIORITY)d, %(STACK_SIZE)d, ' \
-            '%(CBF_TRANSFER)d, %(CAMSERVER_HOST)s, %(CBF_TEMPLATE_LOCATION)s  )' % self.__dict__
+            '%(CBF_TRANSFER)d, "%(CAMSERVER_HOST)s", "%(CBF_TEMPLATE_LOCATION)s"  )' % self.__dict__
 
 def pilatus_sim(**kwargs):
     return simDetector(2500, 2000, **kwargs)
