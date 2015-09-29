@@ -1589,14 +1589,14 @@ asynStatus pilatusDetector::transferCbfTemplate(
     }
     if (path_exists && isregular) {
         epicsSnprintf(target_file, sizeof(target_file), "det@%s:%s", camserverHost, destpath);
-        asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"command will be /usr/bin/scp %s %s",
-                  source, target_file);
+        asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,"command will be /usr/bin/scp "
+                  "-o StrictHostKeyChecking=no %s %s\n", source, target_file);
         childfork = fork();
         if (childfork == -1) {
             asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"fork failed errno = %d (%s)", errno, strerror(errno));
         } else if (childfork == 0) {
             //child
-            status = execl("/usr/bin/scp","-o", "StrictHostKeyChecking=no",source,target_file,(char*)NULL);
+            status = execl("/usr/bin/scp","scp","-o", "StrictHostKeyChecking=no",source,target_file,(char*)NULL);
             _exit(status);
         } else {
             do {
