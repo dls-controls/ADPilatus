@@ -1528,13 +1528,13 @@ asynStatus pilatusDetector::writeFloat64(asynUser *pasynUser, epicsFloat64 value
     return status;
 }
 
-/** Returns the file path of a CBF_template_file for camserver 
+/** Returns the file path of a CBF_template_file for camserver
  *  The file system location is translated by using the basename
  *  and the cbfTemplateLocation configured in the class constructor.
  *  The result is assigned using epicsStrDup and it should be free'd
  *  by the caller.
- * \param[in] source is the path of the cbf_template_file as 
- *            available to the system where the EPICS driver runs, 
+ * \param[in] source is the path of the cbf_template_file as
+ *            available to the system where the EPICS driver runs,
  *            this is typically the Pilatus Processing Unit (PPU).
  */
 char *pilatusDetector::destpath(const char *source)
@@ -1555,7 +1555,7 @@ char *pilatusDetector::destpath(const char *source)
     The file is copied to host $(camserverHost):$(cbfTemplateLocation)/$(basename)
     e.g. /tmp/cbf_templates/test.cbft
     Returns asynSuccess when a file is copied.
-    Returns asynError if no file is copied 
+    Returns asynError if no file is copied
  * \param[in] source is a file available to the EPICS driver typically running on the PPU (Pilatus Processing Unit)
  * \param[out] path_exists returns true if the file is available
  * \param[out] isregular returns true if the file is a regular file
@@ -1564,17 +1564,20 @@ asynStatus pilatusDetector::transferCbfTemplate(
     const char *source, bool &path_exists, bool &isregular)
 {
     asynStatus result = asynSuccess;
-    int scpstatus;
-    char cmd[MAX_MESSAGE_SIZE];
-    char msg[MAX_MESSAGE_SIZE];
+    
+    char target_file[MAX_MESSAGE_SIZE];
     char *destpath = this->destpath(source);
     const char *functionName = "transferCbfTemplate";
-    
+    pid_t childfork;
+    pid_t childw;
     int fd=-1;
     int status=-1;
     struct stat statBuff;
+    siginfo_t forkinfo;
+        
     path_exists = false;
     isregular = false;
+    
     fd = open(source, O_RDONLY,0);
     if (fd>=0) {
         path_exists = true;
@@ -1585,45 +1588,53 @@ asynStatus pilatusDetector::transferCbfTemplate(
         isregular=S_ISREG(statBuff.st_mode);
     }
     if (path_exists && isregular) {
-        epicsSnprintf(cmd, sizeof(cmd), "scp -o StrictHostKeyChecking=no %s det@%s:%s",
-                      source, camserverHost, destpath);
-        epicsSnprintf(msg, sizeof(msg),"Transfer file cmd\n%s", cmd);
-    
-        setStringParam(ADStatusMessage, msg);
-        status = system(cmd);
-        if (status == -1)
-        {
-            epicsSnprintf(msg, sizeof(msg), "status == -1 Error invoking scp. "
-                          "Command was \"%s\"", cmd);
-            setStringParam(ADStatusMessage, msg);
-            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-                      "%s::%s error invoking scp, command was %s",
-                      driverName, functionName, cmd);
-            result = asynError;
+        epicsSnprintf(target_file, sizeof(target_file), "det@%s:%s", camserverHost, destpath);
+        asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"command will be /usr/bin/scp %s %s",
+                  source, target_file);
+        childfork = fork();
+        if (childfork == -1) {
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"fork failed errno = %d (%s)", errno, strerror(errno));
+        } else if (childfork == 0) {
+            //child
+            status = execl("/usr/bin/scp","-o", "StrictHostKeyChecking=no",source,target_file,(char*)NULL);
+            _exit(status);
         } else {
-            scpstatus = WEXITSTATUS(status);
-            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-                      "%s::%s system call for scp command was %s, result is %d, scpstatus is %d",
-                      driverName, functionName, cmd, status, scpstatus);
-            if (scpstatus > 0)
-            {
-                epicsSnprintf(msg, sizeof(msg), "scp returned error code"
-                              " %d. Command was \"%s\"",
-                              scpstatus, cmd);
-                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-                          "%s::%s error invoking scp, scp returned code %d, command was %s",
-                          driverName, functionName, scpstatus, cmd);
-                setStringParam(ADStatusMessage, msg);
-                result = asynError;
+            do {
+                childw = waitid(P_PID, childfork, &forkinfo, WEXITED |  WNOHANG);
+                if (childw == -1) {
+                    if (errno == ECHILD) {
+                        asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,"Ignoring ECHILD error\n");
+                        //ignore
+                        forkinfo.si_pid = childfork;
+                        forkinfo.si_code = CLD_EXITED;
+                        forkinfo.si_status = 0;
+                    }
+                    else {
+                        asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"waitpid failed errno = %d (%s)",
+                                  errno, strerror(errno));
+                    }
+                }
+            } while ((result == asynSuccess) && (forkinfo.si_pid != childfork ));
+            result = asynError;
+            if (forkinfo.si_code == CLD_EXITED) {
+                asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,"exited, status=%d\n", forkinfo.si_status);
+                if (forkinfo.si_status == 0) {
+                    result = asynSuccess;
+                }
+            } else if (forkinfo.si_code == CLD_KILLED) {
+                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"killed by signal %d\n", forkinfo.si_status);
+            } else if (forkinfo.si_code == CLD_STOPPED) {
+                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"stopped by signal %d\n", forkinfo.si_status);
+            } else if (forkinfo.si_code == CLD_CONTINUED) {
+                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"continued\n");
+            } else if (forkinfo.si_code == CLD_DUMPED) {
+                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"dumped\n");
             } else {
-                epicsSnprintf(msg, sizeof(msg), "scp copied okay:"
-                              "Command was \"%s\"",
-                              cmd);
-                setStringParam(ADStatusMessage, msg);
-                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-                          "%s::%s scp okay, return code is %d command was %s",
-                          driverName, functionName, scpstatus, cmd);
+                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"unexpected fork si_code\n");
             }
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,
+                      "%s::%s exe call for scp command forkinfo.si_status is %d",
+                      driverName, functionName, forkinfo.si_status);
         }
     }
     free(destpath);
@@ -1652,12 +1663,12 @@ asynStatus pilatusDetector::doTransfer(asynUser *pasynUser, const char *value, s
             asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
                       "%s::%s, mxsettings cbf_template_file 0\n",
                       driverName, functionName);
-            writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);            
+            writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
         } else {
             /* transfer template before setting definition */
             transferStatus = this->transferCbfTemplate(value, path_exists, isregular);
-            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
-                      "%s::%s  transferStatus == asynSuccess", driverName, functionName);
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,
+                      "%s::%s  transferStatus == asynSuccess\n", driverName, functionName);
             /* transfer done okay, set transfer */
             char *destpath = this->destpath(value);
             epicsSnprintf(this->toCamserver, sizeof(this->toCamserver),
@@ -1668,7 +1679,7 @@ asynStatus pilatusDetector::doTransfer(asynUser *pasynUser, const char *value, s
                           driverName, functionName, transferStatus, value);
             writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
             free(destpath);
-            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,
                       "%s::%s, mxsettings cbf_template_file 0\n",
                       driverName, functionName);
         }
@@ -1685,14 +1696,14 @@ asynStatus pilatusDetector::doTransfer(asynUser *pasynUser, const char *value, s
   * \param[in] value Address of the string to write.
   * \param[in] nChars Number of characters to write.
   * \param[out] nActual Number of characters actually written. */
-asynStatus pilatusDetector::writeOctet(asynUser *pasynUser, const char *value, 
+asynStatus pilatusDetector::writeOctet(asynUser *pasynUser, const char *value,
                                        size_t nChars, size_t *nActual)
 {
     int function = pasynUser->reason;
     asynStatus status = asynSuccess;
     asynStatus transferStatus = asynSuccess;
     const char *functionName = "writeOctet";
-    
+
     /* Set the parameter in the parameter library. */
     status = (asynStatus)setStringParam(function, (char *)value);
 
@@ -1716,7 +1727,7 @@ asynStatus pilatusDetector::writeOctet(asynUser *pasynUser, const char *value,
             writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
         } else {
             transferStatus = this->doTransfer(pasynUser, value, nChars);
-            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,
                       "%s::%s, doTransfer called_result is %d\n",
                       driverName, functionName, transferStatus);
         }
