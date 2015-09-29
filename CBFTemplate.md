@@ -16,9 +16,18 @@ can copy a file via "scp" to a location in the
 detector computer where camserver runs.
 
 The command executed is
-scp source det@camserverHost:cbfTemplateLocation/basename(source)
+scp -o StrictHostKeyChecking=no <source> det@camserverHost:cbfTemplateLocation/basename(source)
 
 The driver assumes that the user in camserverHost is "det".
+
+For example for template at /long/file/system/path/foo.cif, camserver host at "10.10.10.100" and
+cbf template location "/tmp/cbf_templates", the command will be
+
+scp -o StrictHostKeyChecking=no /long/file/system/path/foo.cif det@10.10.10.100:/tmp/cbf_templates/foo.cif
+
+The option "StrictHostKeyChecking=no" is needed to prevent scp from
+generating an entry in ~/.ssh/known_hosts which is not practical for a
+production system running with a generic "epics ioc" user id.
 
 To setup this, these are the steps needed:
 
@@ -54,3 +63,18 @@ $ ssh-copy-id -i cbftransfer.pub det@10.10.10.100
 $ eval `ssh-agent `
 $ ssh-add cbftransfer
 
+Set up at DLS
+=============
+
+Based on the example above, the setup at DLS uses the host-specific
+script "01-ssh-agent-for-ppu.sh" run as user "ixx-detector" to start
+the ssh-agent.
+
+When started, this script launches ssh-agent using a private key as
+generated using ssh-keygen above and generating the file
+/tmp/ssh-agent-info.sh which contains the ssh-agent environment variables
+SSH_AUTH_SOCK
+SSH_AGENT_PID
+
+The pilatus ioc has to load the file /tmp/ssh-agent-info.sh to enable "scp"
+the copy without a password.
