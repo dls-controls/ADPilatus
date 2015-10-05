@@ -3,6 +3,9 @@ ADPilatus Releases at DLS
 
 Release Notes
 =============
+2-1dls4 (Oct 2015)
+------------------
+Changes to allow capture of scp command result
 
 2-1dls3 (September 2015)
 ------------------------
