@@ -1548,6 +1548,51 @@ char *pilatusDetector::destpath(const char *source)
     return epicsStrDup(destpath);
 }
 
+/** Record the signal handler for the thread
+ * This is needed because with the default thread disposition,
+ * for forked parent could not detect the child process "wait" result
+ * to signal a failure of the "scp" process
+ */
+static void record_handler(struct sigaction *oldactp, asynUser *pasynUserSelf)
+{
+    int status;
+    status = sigaction(SIGCHLD, NULL,oldactp);
+    if (status == -1)
+    {
+        asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+                  "record_handler: sigaction failed\n");
+    }
+}
+/** Restore the signal handler for the thread
+ */
+static void restore_handler(struct sigaction *oldactp, asynUser *pasynUserSelf)
+{
+    int status;
+    status = sigaction(SIGCHLD, oldactp,NULL);
+    if (status == -1)
+    {
+        asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+                  "restore_handler: sigaction failed\n");
+    }
+}
+/** Set the default signal handler for SIGCHLD.
+ *  Reasons explained in record_handler.
+ */
+static void set_handler(asynUser *pasynUserSelf)
+{
+    int status;
+    struct sigaction act;
+    act.sa_handler = SIG_DFL;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = 0;
+    status = sigaction(SIGCHLD, &act, NULL);
+    if (status == -1)
+    {
+        asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+                  "default_handler: sigaction failed\n");
+    }
+}
+
 /** Copy a file to the detector computer
     using host OS's "scp" command
     This is invoked as part of the "mxsettings cbf_template_file "
@@ -1564,7 +1609,7 @@ asynStatus pilatusDetector::transferCbfTemplate(
     const char *source, bool &path_exists, bool &isregular)
 {
     asynStatus result = asynSuccess;
-    
+
     char target_file[MAX_MESSAGE_SIZE];
     char *destpath = this->destpath(source);
     const char *functionName = "transferCbfTemplate";
@@ -1573,11 +1618,11 @@ asynStatus pilatusDetector::transferCbfTemplate(
     int fd=-1;
     int status=-1;
     struct stat statBuff;
-    siginfo_t forkinfo;
-        
+    struct sigaction oldaction;
+
     path_exists = false;
     isregular = false;
-    
+
     fd = open(source, O_RDONLY,0);
     if (fd>=0) {
         path_exists = true;
@@ -1588,59 +1633,55 @@ asynStatus pilatusDetector::transferCbfTemplate(
         isregular=S_ISREG(statBuff.st_mode);
     }
     if (path_exists && isregular) {
-        epicsSnprintf(target_file, sizeof(target_file), "det@%s:%s", camserverHost, destpath);
-        asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,"command will be /usr/bin/scp "
-                  "-o StrictHostKeyChecking=no %s %s\n", source, target_file);
+        epicsSnprintf(target_file, sizeof(target_file), "det@%s:%s",
+                      camserverHost, destpath);
+        asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW, "command: "
+                  "/usr/bin/scp -o StrictHostKeyChecking=no %s %s\n",
+                  source, target_file);
+
+        record_handler(&oldaction, this->pasynUserSelf);
+        set_handler(this->pasynUserSelf);
         childfork = fork();
         if (childfork == -1) {
-            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"fork failed errno = %d (%s)", errno, strerror(errno));
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                      "fork failed errno = %d (%s)", errno,
+                      strerror(errno));
         } else if (childfork == 0) {
             //child
-            status = execl("/usr/bin/scp","scp","-o", "StrictHostKeyChecking=no",source,target_file,(char*)NULL);
+            status = execl("/usr/bin/scp","scp","-o",
+                           "StrictHostKeyChecking=no",source,
+                           target_file,(char*)NULL);
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                      "exec failed errno = %d (%s)", errno,
+                      strerror(errno));
             _exit(status);
         } else {
-            do {
-                childw = waitid(P_PID, childfork, &forkinfo, WEXITED |  WNOHANG);
-                if (childw == -1) {
-                    if (errno == ECHILD) {
-                        asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,"Ignoring ECHILD error\n");
-                        //ignore
-                        forkinfo.si_pid = childfork;
-                        forkinfo.si_code = CLD_EXITED;
-                        forkinfo.si_status = 0;
-                    }
-                    else {
-                        asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"waitpid failed errno = %d (%s)",
-                                  errno, strerror(errno));
-                    }
-                }
-            } while ((result == asynSuccess) && (forkinfo.si_pid != childfork ));
-            result = asynError;
-            if (forkinfo.si_code == CLD_EXITED) {
-                asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,"exited, status=%d\n", forkinfo.si_status);
-                if (forkinfo.si_status == 0) {
-                    result = asynSuccess;
-                }
-            } else if (forkinfo.si_code == CLD_KILLED) {
-                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"killed by signal %d\n", forkinfo.si_status);
-            } else if (forkinfo.si_code == CLD_STOPPED) {
-                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"stopped by signal %d\n", forkinfo.si_status);
-            } else if (forkinfo.si_code == CLD_CONTINUED) {
-                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"continued\n");
-            } else if (forkinfo.si_code == CLD_DUMPED) {
-                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"dumped\n");
-            } else {
-                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,"unexpected fork si_code\n");
+            childw = wait(&status);
+            if (childw == -1) {
+                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                          "waitpid failed errno = %d (%s)",
+                          errno, strerror(errno));
             }
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                      "%s::%s exe call for scp command status %d\n",
+                      driverName, functionName, WEXITSTATUS(status));
+            if (WEXITSTATUS(status) != 0)
+            {
+                result = asynError;
+                asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+                          "%s::%s setting result to error\n",
+                          driverName, functionName);
+            }
+        }
+        restore_handler(&oldaction, this->pasynUserSelf);
+        if (result) {
             asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,
-                      "%s::%s exe call for scp command forkinfo.si_status is %d",
-                      driverName, functionName, forkinfo.si_status);
+                      "result is asynError (%d) \n",result);
         }
     }
     free(destpath);
     return result;
 }
-
 
 asynStatus pilatusDetector::doTransfer(asynUser *pasynUser, const char *value, size_t nChars)
 {
@@ -1656,35 +1697,38 @@ asynStatus pilatusDetector::doTransfer(asynUser *pasynUser, const char *value, s
 
     /* only attempt cbf transfers when not acquiring */
     if (adstatus != ADStatusAcquire) {
-        if (( nChars == 0 ) || (strcmp(value, "0")==0)){
+        if (( strlen(value) == 0 ) || (strcmp(value, "0")==0)){
             /* clear template definition */
             epicsSnprintf(this->toCamserver, sizeof(this->toCamserver),
                           "mxsettings cbf_template_file 0");
-            asynPrint(this->pasynUserSelf, ASYN_TRACE_ERROR,
+            asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,
                       "%s::%s, mxsettings cbf_template_file 0\n",
                       driverName, functionName);
             writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
         } else {
             /* transfer template before setting definition */
-            transferStatus = this->transferCbfTemplate(value, path_exists, isregular);
+            transferStatus = this->transferCbfTemplate(
+                value, path_exists, isregular);
             asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,
-                      "%s::%s  transferStatus == asynSuccess\n", driverName, functionName);
+                      "%s::%s  transferStatus == %d\n", driverName,
+                      functionName, transferStatus);
             /* transfer done okay, set transfer */
-            char *destpath = this->destpath(value);
-            epicsSnprintf(this->toCamserver, sizeof(this->toCamserver),
-                          "mxsettings cbf_template_file %s",
-                          destpath);
-            epicsSnprintf(pasynUser->errorMessage, pasynUser->errorMessageSize,
-                          "%s:%s: transferCbfTemplate returned %d value=%s",
-                          driverName, functionName, transferStatus, value);
-            writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
-            free(destpath);
-            asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,
-                      "%s::%s, mxsettings cbf_template_file 0\n",
-                      driverName, functionName);
+            if (transferStatus == asynSuccess) {
+                char *destpath = this->destpath(value);
+                epicsSnprintf(this->toCamserver, sizeof(this->toCamserver),
+                              "mxsettings cbf_template_file %s",
+                              destpath);
+                writeReadCamserver(CAMSERVER_DEFAULT_TIMEOUT);
+                asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,
+                          "%s::%s, mxsettings cbf_template_file %s\n",
+                          driverName, functionName, destpath);
+                free(destpath);
+            }
         }
     } else {
-        setStringParam(ADStatusMessage, "Ignoring request to set cbf template while acquiring");
+        setStringParam(ADStatusMessage, "Ignoring request to "
+                       "set cbf template while acquiring");
+        transferStatus = asynError;
     }
     return transferStatus;
 }
@@ -1739,11 +1783,16 @@ asynStatus pilatusDetector::writeOctet(asynUser *pasynUser, const char *value,
      /* Do callbacks so higher layers see any changes */
     status = (asynStatus)callParamCallbacks();
 
-    if (status)
+    if (transferStatus) {
+        epicsSnprintf(
+            pasynUser->errorMessage, pasynUser->errorMessageSize,
+            "%s:%s: doTransfer error", driverName, functionName);
+        return asynError;
+    } else if (status) {
         epicsSnprintf(pasynUser->errorMessage, pasynUser->errorMessageSize,
                   "%s:%s: status=%d, function=%d, value=%s",
                   driverName, functionName, status, function, value);
-    else
+    } else
         asynPrint(pasynUser, ASYN_TRACEIO_DRIVER,
               "%s:%s: function=%d, value=%s\n",
               driverName, functionName, function, value);
