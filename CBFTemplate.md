@@ -50,7 +50,10 @@ remote system (camserverHost - 10.10.10.100), load an agent and add
 the key for non-interactive file transfers.
 
 $ ssh-keygen -t rsa -N '' -f cbftransfer -C 'cbftransfer'
+ 
 $ ssh-copy-id -i cbftransfer.pub det@10.10.10.100
-$ eval `ssh-agent `
+ 
+$ eval \`ssh-agent\`
+ 
 $ ssh-add cbftransfer
 
