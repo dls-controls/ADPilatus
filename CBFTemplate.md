@@ -29,7 +29,7 @@ identity that allows non-interactive ssh/scp.
 
 cbfTransfer (integer)
 Set this to 0 to send the path directly to camserver. No copy is performed.
-Set this to 1 to copy the template as part of mxsettings cbf_template_fil
+Set this to 1 to copy the template as part of mxsettings cbf_template_file
 
 camserverHost (string)
 host to "scp" the source file to   
