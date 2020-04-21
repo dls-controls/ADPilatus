@@ -3,6 +3,8 @@ include $(TOP)/configure/CONFIG
 #----------------------------------------
 #  ADD MACRO DEFINITIONS AFTER THIS LINE
 
+INC += pilatusDetectorParamSet.h
+
 LIBRARY_IOC_Linux = pilatusDetector
 LIBRARY_IOC_Darwin = pilatusDetector
 

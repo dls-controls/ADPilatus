@@ -37,6 +37,7 @@
 #include <asynOctetSyncIO.h>
 
 #include "ADDriver.h"
+#include "pilatusDetectorParamSet.h"
 
 #define DRIVER_VERSION      2
 #define DRIVER_REVISION     9
@@ -76,58 +77,9 @@ static const char *gainStrings[] = {"lowG", "midG", "highG", "uhighG"};
 
 static const char *driverName = "pilatusDetector";
 
-#define PilatusDelayTimeString      "DELAY_TIME"
-#define PilatusThresholdString      "THRESHOLD"
-#define PilatusThresholdApplyString "THRESHOLD_APPLY"
-#define PilatusThresholdAutoApplyString "THRESHOLD_AUTO_APPLY"
-#define PilatusEnergyString         "ENERGY"
-#define PilatusArmedString          "ARMED"
-#define PilatusResetPowerString     "RESET_POWER"
-#define PilatusResetPowerTimeString "RESET_POWER_TIME"
-#define PilatusImageFileTmotString  "IMAGE_FILE_TMOT"
-#define PilatusBadPixelFileString   "BAD_PIXEL_FILE"
-#define PilatusNumBadPixelsString   "NUM_BAD_PIXELS"
-#define PilatusFlatFieldFileString  "FLAT_FIELD_FILE"
-#define PilatusMinFlatFieldString   "MIN_FLAT_FIELD"
-#define PilatusFlatFieldValidString "FLAT_FIELD_VALID"
-#define PilatusGapFillString        "GAP_FILL"
-#define PilatusWavelengthString     "WAVELENGTH"
-#define PilatusEnergyLowString      "ENERGY_LOW"
-#define PilatusEnergyHighString     "ENERGY_HIGH"
-#define PilatusDetDistString        "DET_DIST"
-#define PilatusDetVOffsetString     "DET_VOFFSET"
-#define PilatusBeamXString          "BEAM_X"
-#define PilatusBeamYString          "BEAM_Y"
-#define PilatusFluxString           "FLUX"
-#define PilatusFilterTransmString   "FILTER_TRANSM"
-#define PilatusStartAngleString     "START_ANGLE"
-#define PilatusAngleIncrString      "ANGLE_INCR"
-#define PilatusDet2thetaString      "DET_2THETA"
-#define PilatusPolarizationString   "POLARIZATION"
-#define PilatusAlphaString          "ALPHA"
-#define PilatusKappaString          "KAPPA"
-#define PilatusPhiString            "PHI"
-#define PilatusPhiIncrString        "PHI_INCR"
-#define PilatusChiString            "CHI"
-#define PilatusChiIncrString        "CHI_INCR"
-#define PilatusOmegaString          "OMEGA"
-#define PilatusOmegaIncrString      "OMEGA_INCR"
-#define PilatusOscillAxisString     "OSCILL_AXIS"
-#define PilatusNumOscillString      "NUM_OSCILL"
-#define PilatusPixelCutOffString    "PIXEL_CUTOFF"
-#define PilatusThTemp0String        "TH_TEMP_0"
-#define PilatusThTemp1String        "TH_TEMP_1"
-#define PilatusThTemp2String        "TH_TEMP_2"
-#define PilatusThHumid0String       "TH_HUMID_0"
-#define PilatusThHumid1String       "TH_HUMID_1"
-#define PilatusThHumid2String       "TH_HUMID_2"
-#define PilatusTvxVersionString     "TVXVERSION"
-#define PilatusCbfTemplateFileString "CBFTEMPLATEFILE"
-#define PilatusHeaderStringString   "HEADERSTRING"
-
 
 /** Driver for Dectris Pilatus pixel array detectors using their camserver server over TCP/IP socket */
-class pilatusDetector : public ADDriver {
+class pilatusDetector : public pilatusDetectorParamSet, public ADDriver {
 public:
     pilatusDetector(const char *portName, const char *camserverPort,
                     int maxSizeX, int maxSizeY,
@@ -141,60 +93,9 @@ public:
                                     size_t nChars, size_t *nActual);
     void report(FILE *fp, int details);
     /* These should be private but are called from C so must be public */
-    void pilatusTask(); 
-    
-protected:
-    int PilatusDelayTime;
-    #define FIRST_PILATUS_PARAM PilatusDelayTime
-    int PilatusThreshold;
-    int PilatusThresholdApply;
-    int PilatusThresholdAutoApply;
-    int PilatusEnergy;
-    int PilatusArmed;
-    int PilatusResetPower;
-    int PilatusResetPowerTime;
-    int PilatusImageFileTmot;
-    int PilatusBadPixelFile;
-    int PilatusNumBadPixels;
-    int PilatusFlatFieldFile;
-    int PilatusMinFlatField;
-    int PilatusFlatFieldValid;
-    int PilatusGapFill;
-    int PilatusWavelength;
-    int PilatusEnergyLow;
-    int PilatusEnergyHigh;
-    int PilatusDetDist;
-    int PilatusDetVOffset;
-    int PilatusBeamX;
-    int PilatusBeamY;
-    int PilatusFlux;
-    int PilatusFilterTransm;
-    int PilatusStartAngle;
-    int PilatusAngleIncr;
-    int PilatusDet2theta;
-    int PilatusPolarization;
-    int PilatusAlpha;
-    int PilatusKappa;
-    int PilatusPhi;
-    int PilatusPhiIncr;
-    int PilatusChi;
-    int PilatusChiIncr;
-    int PilatusOmega;
-    int PilatusOmegaIncr;
-    int PilatusOscillAxis;
-    int PilatusNumOscill;
-    int PilatusPixelCutOff;  
-    int PilatusThTemp0;
-    int PilatusThTemp1;
-    int PilatusThTemp2;
-    int PilatusThHumid0;
-    int PilatusThHumid1;
-    int PilatusThHumid2;
-    int PilatusTvxVersion;
-    int PilatusCbfTemplateFile;
-    int PilatusHeaderString;
+    void pilatusTask();
 
- private:                                       
+ private:
     /* These are the methods that are new to this class */
     void abortAcquisition();
     void makeMultipleFileFormat(const char *baseFileName);
@@ -1728,55 +1629,6 @@ pilatusDetector::pilatusDetector(const char *portName, const char *camserverPort
     
     /* Connect to camserver */
     status = pasynOctetSyncIO->connect(camserverPort, 0, &this->pasynUserCamserver, NULL);
-
-    createParam(PilatusDelayTimeString,      asynParamFloat64, &PilatusDelayTime);
-    createParam(PilatusThresholdString,      asynParamFloat64, &PilatusThreshold);
-    createParam(PilatusThresholdApplyString, asynParamInt32,   &PilatusThresholdApply);
-    createParam(PilatusThresholdAutoApplyString, asynParamInt32,   &PilatusThresholdAutoApply);
-    createParam(PilatusEnergyString,         asynParamFloat64, &PilatusEnergy);
-    createParam(PilatusArmedString,          asynParamInt32,   &PilatusArmed);
-    createParam(PilatusResetPowerString,     asynParamInt32,   &PilatusResetPower);
-    createParam(PilatusResetPowerTimeString, asynParamInt32,   &PilatusResetPowerTime);
-    createParam(PilatusImageFileTmotString,  asynParamFloat64, &PilatusImageFileTmot);
-    createParam(PilatusBadPixelFileString,   asynParamOctet,   &PilatusBadPixelFile);
-    createParam(PilatusNumBadPixelsString,   asynParamInt32,   &PilatusNumBadPixels);
-    createParam(PilatusFlatFieldFileString,  asynParamOctet,   &PilatusFlatFieldFile);
-    createParam(PilatusMinFlatFieldString,   asynParamInt32,   &PilatusMinFlatField);
-    createParam(PilatusFlatFieldValidString, asynParamInt32,   &PilatusFlatFieldValid);
-    createParam(PilatusGapFillString,        asynParamInt32,   &PilatusGapFill);
-    createParam(PilatusWavelengthString,     asynParamFloat64, &PilatusWavelength);
-    createParam(PilatusEnergyLowString,      asynParamFloat64, &PilatusEnergyLow);
-    createParam(PilatusEnergyHighString,     asynParamFloat64, &PilatusEnergyHigh);
-    createParam(PilatusDetDistString,        asynParamFloat64, &PilatusDetDist);
-    createParam(PilatusDetVOffsetString,     asynParamFloat64, &PilatusDetVOffset);
-    createParam(PilatusBeamXString,          asynParamFloat64, &PilatusBeamX);
-    createParam(PilatusBeamYString,          asynParamFloat64, &PilatusBeamY);
-    createParam(PilatusFluxString,           asynParamFloat64, &PilatusFlux);
-    createParam(PilatusFilterTransmString,   asynParamFloat64, &PilatusFilterTransm);
-    createParam(PilatusStartAngleString,     asynParamFloat64, &PilatusStartAngle);
-    createParam(PilatusAngleIncrString,      asynParamFloat64, &PilatusAngleIncr);
-    createParam(PilatusDet2thetaString,      asynParamFloat64, &PilatusDet2theta);
-    createParam(PilatusPolarizationString,   asynParamFloat64, &PilatusPolarization);
-    createParam(PilatusAlphaString,          asynParamFloat64, &PilatusAlpha);
-    createParam(PilatusKappaString,          asynParamFloat64, &PilatusKappa);
-    createParam(PilatusPhiString,            asynParamFloat64, &PilatusPhi);
-    createParam(PilatusPhiIncrString,        asynParamFloat64, &PilatusPhiIncr);
-    createParam(PilatusChiString,            asynParamFloat64, &PilatusChi);
-    createParam(PilatusChiIncrString,        asynParamFloat64, &PilatusChiIncr);
-    createParam(PilatusOmegaString,          asynParamFloat64, &PilatusOmega);
-    createParam(PilatusOmegaIncrString,      asynParamFloat64, &PilatusOmegaIncr);
-    createParam(PilatusOscillAxisString,     asynParamOctet,   &PilatusOscillAxis);
-    createParam(PilatusNumOscillString,      asynParamInt32,   &PilatusNumOscill);
-    createParam(PilatusPixelCutOffString,    asynParamInt32,   &PilatusPixelCutOff);
-    createParam(PilatusThTemp0String,        asynParamFloat64, &PilatusThTemp0);
-    createParam(PilatusThTemp1String,        asynParamFloat64, &PilatusThTemp1);
-    createParam(PilatusThTemp2String,        asynParamFloat64, &PilatusThTemp2);
-    createParam(PilatusThHumid0String,       asynParamFloat64, &PilatusThHumid0);
-    createParam(PilatusThHumid1String,       asynParamFloat64, &PilatusThHumid1);
-    createParam(PilatusThHumid2String,       asynParamFloat64, &PilatusThHumid2);
-    createParam(PilatusTvxVersionString,     asynParamOctet,   &PilatusTvxVersion);
-    createParam(PilatusCbfTemplateFileString,asynParamOctet,   &PilatusCbfTemplateFile);
-    createParam(PilatusHeaderStringString,   asynParamOctet,   &PilatusHeaderString);
 
     /* Set some default values for parameters */
     status =  setStringParam (ADManufacturer, "Dectris");
