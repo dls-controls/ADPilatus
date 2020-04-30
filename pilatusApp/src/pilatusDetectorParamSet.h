@@ -1,7 +1,8 @@
 #ifndef PilatusDetectorParamSet_H
 #define PilatusDetectorParamSet_H
 
-#include "asynParamSet.h"
+#include "ADDriverParamSet.h"
+
 
 #define PilatusDelayTimeString      "DELAY_TIME"
 #define PilatusThresholdString      "THRESHOLD"
@@ -53,7 +54,7 @@
 #define PilatusHeaderStringString   "HEADERSTRING"
 
 /** Pilatus detector param set */
-class pilatusDetectorParamSet : public virtual asynParamSet {
+class pilatusDetectorParamSet : public virtual ADDriverParamSet {
 public:
     pilatusDetectorParamSet() {
         this->add(PilatusDelayTimeString, asynParamFloat64, &PilatusDelayTime);
