@@ -109,7 +109,7 @@ public:
 
 protected:
     int PilatusDelayTime;
-    #define FIRST_PILATUS_PARAM PilatusDelayTime
+    #define FIRST_PILATUS_PARAM_INDEX PilatusDelayTime
     int PilatusThreshold;
     int PilatusThresholdApply;
     int PilatusThresholdAutoApply;
